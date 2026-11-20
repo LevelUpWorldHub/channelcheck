@@ -1,0 +1,17 @@
+# QNX SDP 8.0 security policy — ADAS sensor bus (intentionally weak)
+type sensor_t;
+type fusion_t;
+type unused_logger_t;
+
+allow_attach sensor_t /dev/adas/sensor;
+allow_attach fusion_t /dev/adas/fusion;
+allow_channel fusion_t sensor_t;
+allow sensor_t * : * *;
+allow_link fusion_t /tmp/fusion;
+
+procmgr_ability fusion_t {
+    PROCMGR_AID_ROOT
+    PROCMGR_AID_MEM_PHYS
+    PROCMGR_AID_ABLE_PRIV
+    PROCMGR_AID_SPAWN
+};

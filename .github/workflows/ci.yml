@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Workbench CSS includes Tailwind utilities
+        run: grep -q '\.flex{' dist-web/assets/*.css
+      - name: CLI passes the hardened baseline
+        run: node dist/cli/index.js ci examples/hardened-baseline
+      - name: CLI rejects the ADAS image
+        run: |
+          set +e
+          node dist/cli/index.js ci examples/adas-sensor-bus
+          status=$?
+          set -e
+          test "$status" -eq 1
+      - name: SARIF and dry-run smoke
+        run: |
+          node dist/cli/index.js sarif examples/factory-plc -o /tmp/channelcheck.sarif
+          node dist/cli/index.js fix examples/adas-sensor-bus --dry-run | grep -q MsgSendPulse
+          grep -q '"version": "2.1.0"' /tmp/channelcheck.sarif

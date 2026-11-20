@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ChannelCheck codelab — QNX SDP 8.0</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0c1210; --ink:#e7f2eb; --muted:#8ea399; --line:#2a3a32; --accent:#d6ff4a; --panel:#141c18; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 "IBM Plex Sans", "Segoe UI", sans-serif; }
+    main { max-width: 46rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+    h1 { font-size: 1.8rem; letter-spacing: -0.02em; margin-bottom: 0.4rem; }
+    .kicker { color: var(--accent); letter-spacing: 0.16em; font-size: 0.72rem; text-transform: uppercase; }
+    p, li { color: var(--ink); }
+    .lede, .note { color: var(--muted); }
+    article { border-top: 1px solid var(--line); padding: 1.2rem 0; }
+    h2 { font-size: 1.15rem; margin: 0 0 0.4rem; }
+    .n { font-family: ui-monospace, monospace; color: var(--accent); font-size: 0.78rem; }
+    pre { background: var(--panel); border: 1px solid var(--line); padding: 0.8rem 1rem; overflow: auto; font: 0.82rem/1.45 ui-monospace, monospace; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  <p class="kicker">QNX SDP 8.0 · ChannelCheck</p>
+  <h1>From a resource manager to a clean image</h1>
+  <p class="lede">Six steps. Steps 1–5 need Node 22. Step 6 needs QNX SDP 8.0 and QEMU. The long form is <a href="../CODELAB.md">docs/CODELAB.md</a>. The same lesson is the Codelab tab in the workbench. This page does not show output from <code>qcc</code>, because the host that checked ChannelCheck does not have the SDP installed.</p>
+
+  <article>
+    <p class="n">Step 01</p>
+    <h2>Write a QNX 8.0 resource manager</h2>
+    <p>Create the channel with <code>_NTO_CHF_FIXED_PRIORITY</code>. Hand that channel to <code>dispatch_create_channel</code>. Attach a path with <code>resmgr_attach</code>. Transition with <code>secpol_transition_type</code>. Check every return. In <code>io_devctl</code>, <code>iofunc_devctl_default</code> only validates the message. Read <code>ctp-&gt;info.cred</code> or call <code>secpol_check</code> before you change device state.</p>
+    <pre>chid = ChannelCreate(_NTO_CHF_FIXED_PRIORITY);
+if (chid == -1) return EXIT_FAILURE;
+dpp = dispatch_create_channel(chid, 0);
+id = resmgr_attach(dpp, &amp;resmgr_attr, "/dev/telemetry", _FTYPE_ANY, 0,
+                   &amp;connect_funcs, &amp;io_funcs, &amp;attr);
+secpol_transition_type(NULL, "telemetry_t", 0);</pre>
+  </article>
+
+  <article>
+    <p class="n">Step 02</p>
+    <h2>Pair it with an IFS buildfile</h2>
+    <p>The bootstrap starts with <code>startup-*</code> and ends with <code>procnto-smp-instr</code>. <code>PATH=</code> becomes <code>_CS_PATH</code>, so do not leave <code>.</code> in it. The <code>[+script]</code> is not a shell. A command without <code>&amp;</code> blocks the rest of the script. Call <code>secpolpush</code> before any daemon. Launch long-running processes with <code>on -T</code>. Leave <code>ksh</code> and <code>qconn</code> out of a production image.</p>
+    <pre>[virtual=x86_64,bios +compress] boot = {
+    startup-x86
+    PATH=/proc/boot:/bin:/usr/bin procnto-smp-instr
+}
+[+script] startup-script = {
+    secpolpush
+    on -T telemetry_t telemetry_rm &amp;
+}</pre>
+  </article>
+
+  <article>
+    <p class="n">Step 03</p>
+    <h2>Write a least-privilege secpol</h2>
+    <p>Declare the types you launch. <code>allow_attach</code> names the path. <code>allow client server:channel connect</code> is the rule a <code>MsgSend</code> needs. Do not grant <code>PROCMGR_AID_ROOT</code>, <code>mem_phys</code>, or <code>able_priv</code> to an ordinary daemon. A wildcard <code>allow</code> is not a policy.</p>
+    <pre>type telemetry_t;
+type telemetry_client_t;
+allow_attach telemetry_t /dev/telemetry;
+allow telemetry_client_t telemetry_t:channel connect;</pre>
+  </article>
+
+  <article>
+    <p class="n">Step 04</p>
+    <h2>Plant a deadlock and a privilege leak</h2>
+    <p>Open <code>examples/adas-sensor-bus</code>. <code>sensor_rm</code> and <code>fusion</code> are single-threaded resource managers. Each <code>io_devctl</code> opens the other path and calls <code>MsgSend</code>. <code>MsgSend</code> waits for <code>MsgReply</code>, and the only thread that can reply is blocked in that send. The policy grants <code>fusion_t</code> root, and the buildfile runs <code>secpolpush</code> after <code>ksh</code>.</p>
+    <pre>fd = open("/dev/adas/fusion", O_RDWR);
+MsgSend(fd, &amp;frame, sizeof frame, &amp;frame, sizeof frame);</pre>
+  </article>
+
+  <article>
+    <p class="n">Step 05</p>
+    <h2>Catch it with ChannelCheck</h2>
+    <p>Scan the sample. The graph shows the cycle. Apply safe fixes. One <code>MsgSend</code> becomes <code>MsgSendPulse</code>, channels gain fixed priority, <code>secpolpush</code> moves up, and the root abilities disappear. Scan again. Critical findings are gone. <code>ci</code> exits 1 on the broken image and 0 on the hardened baseline.</p>
+    <pre>npx channelcheck scan examples/adas-sensor-bus
+npx channelcheck fix examples/adas-sensor-bus --dry-run
+npx channelcheck ci examples/adas-sensor-bus
+npx channelcheck ci examples/hardened-baseline</pre>
+  </article>
+
+  <article>
+    <p class="n">Step 06</p>
+    <h2>Build and boot on QNX SDP 8.0 QEMU</h2>
+    <p>Source <code>qnxsdp-env.sh</code>. The Makefiles use <code>qcc -Vgcc_ntox86_64</code>, <code>qcc -Vgcc_ntoaarch64le</code>, <code>secpolcompile</code>, and <code>mkifs</code>. The x86_64 image is a BIOS disk. The aarch64le image is a raw kernel. The shell scripts stop if <code>qcc</code> is missing, which is the honest behavior on a machine that only ran the analyzer.</p>
+    <pre>. /opt/qnx800/qnxsdp-env.sh
+make -C examples/adas-sensor-bus CPU=x86_64
+make -C examples/infusion-pump CPU=aarch64le
+sh scripts/qemu-x86_64.sh examples/adas-sensor-bus/adas.ifs
+sh scripts/qemu-aarch64le.sh examples/infusion-pump/pump.ifs</pre>
+    <p class="note">Verified on the Linux host: the TypeScript engine, the tests, the CLI, and the workbench build. Not verified here: a QEMU serial console, because <code>qcc</code> is not installed in that environment.</p>
+  </article>
+</main>
+</body>
+</html>

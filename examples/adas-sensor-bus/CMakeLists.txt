@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.21)
+project(adas_sensor_bus C)
+add_executable(sensor_rm sensor_rm.c)
+add_executable(fusion fusion.c)
+target_compile_options(sensor_rm PRIVATE -Wall -Wextra)
+target_compile_options(fusion PRIVATE -Wall -Wextra)

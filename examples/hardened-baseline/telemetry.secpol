@@ -1,0 +1,21 @@
+type slogger_t;
+type devc_t;
+type telemetry_t;
+type telemetry_client_t;
+
+allow_attach telemetry_t /dev/telemetry;
+allow telemetry_client_t telemetry_t:channel connect;
+
+allow telemetry_t self:ability {
+    spawn
+    prot_exec
+};
+
+allow devc_t self:ability {
+    interrupt
+    io
+};
+
+allow slogger_t self:ability {
+    pathspace
+};

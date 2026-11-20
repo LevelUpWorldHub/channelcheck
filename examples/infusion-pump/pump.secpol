@@ -1,0 +1,20 @@
+type pump_t;
+type clinician_t;
+type slogger_t;
+
+allow_attach pump_t /dev/infusion/pump;
+allow clinician_t pump_t:channel connect;
+
+allow pump_t self:ability {
+    PROCMGR_AID_MEM_PHYS
+    interrupt
+    io
+};
+
+allow clinician_t self:ability {
+    channel_connect:pump_t
+};
+
+allow slogger_t self:ability {
+    pathspace
+};

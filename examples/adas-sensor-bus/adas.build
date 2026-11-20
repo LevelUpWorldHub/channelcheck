@@ -1,0 +1,34 @@
+# QNX SDP 8.0 IFS — ADAS sensor bus (intentionally weak; ChannelCheck demo)
+[virtual=x86_64,bios +compress] boot = {
+    startup-x86
+    PATH=/proc/boot:/bin:/usr/bin:. LD_LIBRARY_PATH=/proc/boot:/lib:/usr/lib procnto-smp-instr -v
+}
+
+[+script] startup-script = {
+    display_msg "ADAS sensor bus"
+    procmgr_symlink ../../proc/boot/libc.so.5 /usr/lib/ldqnx-64.so.2
+    # Daemons are started before the policy exists.
+    slogger2 &
+    io-sock &
+    devc-ser8250 -e -b115200 0x3f8,4 &
+    sensor_rm &
+    fusion
+    qconn
+    ksh &
+    secpolpush /proc/boot/secpol.bin
+}
+
+libc.so.5
+libsecpol.so
+slogger2
+io-sock
+devc-ser8250
+secpolpush
+qconn
+ksh
+
+[type=link] /usr/lib/ldqnx-64.so.2=/proc/boot/libc.so.5
+[type=link] /tmp/ksh=/proc/boot/ksh
+[uid=0 gid=0 perms=4755] /proc/boot/sensor_rm = sensor_rm
+[uid=0 gid=0 perms=0666] /proc/boot/fusion = fusion
+[uid=0 gid=0 perms=0755] /proc/boot/sensor_rm = sensor_rm

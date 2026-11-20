@@ -1,0 +1,27 @@
+# QNX SDP 8.0 IFS — hardened baseline (ChannelCheck clean image)
+[virtual=x86_64,bios +compress] boot = {
+    startup-x86
+    PATH=/proc/boot:/bin:/usr/bin LD_LIBRARY_PATH=/proc/boot:/lib:/usr/lib procnto-smp-instr
+}
+
+[+script] startup-script = {
+    display_msg "ChannelCheck hardened baseline"
+    procmgr_symlink ../../proc/boot/libc.so.5 /usr/lib/ldqnx-64.so.2
+    secpolpush
+    on -T slogger_t slogger2 &
+    on -T devc_t devc-ser8250 -e -b115200 0x3f8,4 &
+    waitfor /dev/ser1
+    reopen /dev/ser1
+    on -T telemetry_t telemetry_rm &
+    on -T telemetry_client_t telemetry_client &
+}
+
+[uid=0 gid=0 perms=0644] /proc/boot/secpol.bin = telemetry.secpol.bin
+[uid=0 gid=0 perms=0755] /proc/boot/telemetry_rm = telemetry_rm
+[uid=0 gid=0 perms=0755] /proc/boot/telemetry_client = telemetry_client
+[type=link] /usr/lib/ldqnx-64.so.2=/proc/boot/libc.so.5
+libc.so.5
+libsecpol.so
+slogger2
+devc-ser8250
+secpolpush

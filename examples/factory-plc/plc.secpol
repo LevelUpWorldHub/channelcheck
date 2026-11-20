@@ -1,0 +1,10 @@
+type plc_t;
+type supervisor_t;
+type unused_hmi_t;
+
+allow_attach plc_t /dev/plc/cell;
+allow supervisor_t * : channel *;
+allow_channel supervisor_t plc_t;
+allow_link supervisor_t /tmp/plc.trace;
+
+derive_type supervisor_t run supervisor_t;

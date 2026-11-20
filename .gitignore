@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-web/
+coverage/
+.vite/
+*.log
+*.ifs
+*.secpol.bin
+*.sym
+.DS_Store
+*.tsbuildinfo
+.vercel
+.env
+.env.*

@@ -1,0 +1,22 @@
+# QNX SDP 8.0 IFS — infusion pump controller
+[virtual=aarch64le,raw +compress] boot = {
+    startup-arm
+    PATH=/proc/boot:/bin:/usr/bin LD_LIBRARY_PATH=/proc/boot:/lib:/usr/lib procnto-smp-instr
+}
+
+[+script] startup-script = {
+    display_msg "infusion pump"
+    procmgr_symlink ../../proc/boot/libc.so.5 /usr/lib/ldqnx-64.so.2
+    secpolpush
+    on -T slogger_t slogger2 &
+    [pri=30f] on -u 0:0 pump_rm &
+    on -T clinician_t clinician_ui &
+}
+
+[uid=0 gid=0 perms=0644] /proc/boot/secpol.bin = pump.secpol.bin
+[uid=0 gid=0 perms=0777] /proc/boot/pump_rm = pump_rm
+[uid=0 gid=0 perms=0755] /proc/boot/clinician_ui = clinician_ui
+libc.so.5
+libsecpol.so
+slogger2
+secpolpush
